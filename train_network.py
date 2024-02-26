@@ -17,6 +17,7 @@ init_ipex()
 
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+from argparse import Namespace
 from accelerate.utils import set_seed
 from diffusers import DDPMScheduler
 from library import model_util
@@ -136,31 +137,193 @@ class NetworkTrainer:
     def sample_images(self, accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet):
         train_util.sample_images(accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet)
 
-    def train(self, args):
+    def train(self,
+        v2=False,
+        v_parameterization=False,
+        pretrained_model_name_or_path=None,
+        tokenizer_cache_dir=None,
+        output_dir=None,
+        output_name=None,
+        huggingface_repo_id=None,
+        huggingface_repo_type=None,
+        huggingface_path_in_repo=None,
+        huggingface_token=None,
+        huggingface_repo_visibility=None,
+        save_state_to_huggingface=False,
+        resume_from_huggingface=False,
+        async_upload=False,
+        save_precision=None,
+        save_every_n_epochs=None,
+        save_every_n_steps=None,
+        save_n_epoch_ratio=None,
+        save_last_n_epochs=None,
+        save_last_n_epochs_state=None,
+        save_last_n_steps=None,
+        save_last_n_steps_state=None,
+        save_state=None,
+        resume=None,
+        train_batch_size=1,
+        max_token_length=None,
+        mem_eff_attn=False,
+        torch_compile=False,
+        dynamo_backend="inductor",
+        xformers=False,
+        sdpa=False,
+        vae=None,
+        max_train_epochs=None,
+        max_data_loader_n_workers=8,
+        seed=None,
+        persistent_data_loader_workers=False,
+        gradient_checkpointing=False,
+        gradient_accumulation_steps=1,
+        mixed_precision="no",
+        full_fp16=False,
+        full_bf16=False,
+        fp8_base=False,
+        ddp_timeout=None,
+        ddp_gradient_as_bucket_view=False,
+        ddp_static_graph=False,
+        clip_skip=None,
+        logging_dir=None,
+        log_with=None,
+        log_prefix=None,
+        log_tracker_name=None,
+        wandb_run_name=None,
+        log_tracker_config=None,
+        wandb_api_key=None,
+        noise_offset=None,
+        multires_noise_iterations=None,
+        ip_noise_gamma=None,
+        multires_noise_discount=0.3,
+        adaptive_noise_scale=None,
+        zero_terminal_snr=False,
+        min_timestep=None,
+        max_timestep=None,
+        lowram=False,
+        highvram=False,
+        sample_every_n_steps=None,
+        sample_at_first=False,
+        sample_every_n_epochs=None,
+        sample_prompts=None,
+        sample_sampler="ddim",
+        config_file=None,
+        output_config=False,
+        metadata_title=None,
+        metadata_author=None,
+        metadata_description=None,
+        metadata_license=None,
+        metadata_tags=None,
+        prior_loss_weight=1.0,
+        train_data_dir=None,
+        shuffle_caption=False,
+        caption_separator=",",
+        caption_extension=".caption",
+        caption_extention=None,
+        keep_tokens=0,
+        keep_tokens_separator="",
+        caption_prefix=None,
+        caption_suffix=None,
+        color_aug=False,
+        flip_aug=False,
+        face_crop_aug_range=None,
+        random_crop=False,
+        debug_dataset=False,
+        resolution=None,
+        cache_latents=False,
+        vae_batch_size=1,
+        cache_latents_to_disk=False,
+        enable_bucket=False,
+        min_bucket_reso=256,
+        max_bucket_reso=1024,
+        bucket_reso_steps=64,
+        bucket_no_upscale=False,
+        token_warmup_min=1,
+        token_warmup_step=0,
+        dataset_class=None,
+        caption_dropout_rate=0.0,
+        caption_dropout_every_n_epochs=0,
+        caption_tag_dropout_rate=0.0,
+        reg_data_dir=None,
+        in_json=None,
+        dataset_repeats=1,
+
+        use_safetensors=False,
+
+        optimizer_type="",
+        use_8bit_adam=False,
+        use_lion_optimizer=False,
+        learning_rate=2.0e-6,
+        max_grad_norm=1.0,
+        optimizer_args=None,
+        lr_scheduler_type="",
+        lr_scheduler_args=None,
+        lr_scheduler="constant",
+        lr_warmup_steps=0,
+        lr_scheduler_num_cycles=1,
+        lr_scheduler_power=1,
+
+        dataset_config=None,
+
+        min_snr_gamma=None,
+        scale_v_pred_loss_like_noise_pred=False,
+        v_pred_like_loss=None,
+        debiased_estimation_loss=False,
+        weighted_captions=False,
+
+        no_metadata=False,
+        save_model_as="safetensors",
+        unet_lr=None,
+        text_encoder_lr=None,
+        network_weights=None,
+        network_module=None,
+        network_dim=None,
+        network_alpha=1,
+        network_dropout=None,
+        network_args=None,
+        network_train_unet_only=False,
+        network_train_text_encoder_only=False,
+        training_comment=None,
+        dim_from_weights=False,
+        scale_weight_norms=None,
+        base_weights=None,
+        base_weights_multiplier=None,
+        no_half_vae=False,
+
+        console_log_level=None,
+        console_log_file=None,
+        console_log_simple=None,
+
+        max_train_steps=None,
+    ):
+        _args = locals()
+        del _args['self']
+        args = Namespace(**_args)
         session_id = random.randint(0, 2**32)
         training_started_at = time.time()
         train_util.verify_training_args(args)
         train_util.prepare_dataset_args(args, True)
         setup_logging(args, reset=True)
+        locals().update(vars(args))
 
-        cache_latents = args.cache_latents
-        use_dreambooth_method = args.in_json is None
-        use_user_config = args.dataset_config is not None
+        vae_path = vae
 
-        if args.seed is None:
-            args.seed = random.randint(0, 2**32)
-        set_seed(args.seed)
+        use_dreambooth_method = in_json is None
+        use_user_config = dataset_config is not None
+
+        if seed is None:
+            seed = random.randint(0, 2**32)
+        set_seed(seed)
 
         # tokenizerは単体またはリスト、tokenizersは必ずリスト：既存のコードとの互換性のため
         tokenizer = self.load_tokenizer(args)
         tokenizers = tokenizer if isinstance(tokenizer, list) else [tokenizer]
 
         # データセットを準備する
-        if args.dataset_class is None:
+        if dataset_class is None:
             blueprint_generator = BlueprintGenerator(ConfigSanitizer(True, True, False, True))
             if use_user_config:
-                logger.info(f"Loading dataset config from {args.dataset_config}")
-                user_config = config_util.load_user_config(args.dataset_config)
+                logger.info(f"Loading dataset config from {dataset_config}")
+                user_config = config_util.load_user_config(dataset_config)
                 ignored = ["train_data_dir", "reg_data_dir", "in_json"]
                 if any(getattr(args, attr) is not None for attr in ignored):
                     logger.warning(
@@ -175,7 +338,7 @@ class NetworkTrainer:
                         "datasets": [
                             {
                                 "subsets": config_util.generate_dreambooth_subsets_config_by_subdirs(
-                                    args.train_data_dir, args.reg_data_dir
+                                    train_data_dir, reg_data_dir
                                 )
                             }
                         ]
@@ -187,8 +350,8 @@ class NetworkTrainer:
                             {
                                 "subsets": [
                                     {
-                                        "image_dir": args.train_data_dir,
-                                        "metadata_file": args.in_json,
+                                        "image_dir": train_data_dir,
+                                        "metadata_file": in_json,
                                     }
                                 ]
                             }
@@ -203,10 +366,10 @@ class NetworkTrainer:
 
         current_epoch = Value("i", 0)
         current_step = Value("i", 0)
-        ds_for_collator = train_dataset_group if args.max_data_loader_n_workers == 0 else None
+        ds_for_collator = train_dataset_group if max_data_loader_n_workers == 0 else None
         collator = train_util.collator_class(current_epoch, current_step, ds_for_collator)
 
-        if args.debug_dataset:
+        if debug_dataset:
             train_util.debug_dataset(train_dataset_group)
             return
         if len(train_dataset_group) == 0:
@@ -229,7 +392,7 @@ class NetworkTrainer:
 
         # mixed precisionに対応した型を用意しておき適宜castする
         weight_dtype, save_dtype = train_util.prepare_dtype(args)
-        vae_dtype = torch.float32 if args.no_half_vae else weight_dtype
+        vae_dtype = torch.float32 if no_half_vae else weight_dtype
 
         # モデルを読み込む
         model_version, text_encoder, vae, unet = self.load_target_model(args, weight_dtype, accelerator)
@@ -238,31 +401,31 @@ class NetworkTrainer:
         text_encoders = text_encoder if isinstance(text_encoder, list) else [text_encoder]
 
         # モデルに xformers とか memory efficient attention を組み込む
-        train_util.replace_unet_modules(unet, args.mem_eff_attn, args.xformers, args.sdpa)
+        train_util.replace_unet_modules(unet, mem_eff_attn, xformers, sdpa)
         if torch.__version__ >= "2.0.0":  # PyTorch 2.0.0 以上対応のxformersなら以下が使える
-            vae.set_use_memory_efficient_attention_xformers(args.xformers)
+            vae.set_use_memory_efficient_attention_xformers(xformers)
 
         # 差分追加学習のためにモデルを読み込む
         sys.path.append(os.path.dirname(__file__))
-        accelerator.print("import network module:", args.network_module)
-        network_module = importlib.import_module(args.network_module)
+        accelerator.print("import network module:", network_module)
+        network_module = importlib.import_module(network_module)
 
-        if args.base_weights is not None:
+        if base_weights is not None:
             # base_weights が指定されている場合は、指定された重みを読み込みマージする
-            for i, weight_path in enumerate(args.base_weights):
-                if args.base_weights_multiplier is None or len(args.base_weights_multiplier) <= i:
+            for i, weight_path in enumerate(base_weights):
+                if base_weights_multiplier is None or len(base_weights_multiplier) <= i:
                     multiplier = 1.0
                 else:
-                    multiplier = args.base_weights_multiplier[i]
+                    multiplier = base_weights_multiplier[i]
 
                 accelerator.print(f"merging module: {weight_path} with multiplier {multiplier}")
 
                 module, weights_sd = network_module.create_network_from_weights(
                     multiplier, weight_path, vae, text_encoder, unet, for_inference=True
                 )
-                module.merge_to(text_encoder, unet, weights_sd, weight_dtype, accelerator.device if args.lowram else "cpu")
+                module.merge_to(text_encoder, unet, weights_sd, weight_dtype, accelerator.device if lowram else "cpu")
 
-            accelerator.print(f"all weights merged: {', '.join(args.base_weights)}")
+            accelerator.print(f"all weights merged: {', '.join(base_weights)}")
 
         # 学習を準備する
         if cache_latents:
@@ -270,7 +433,7 @@ class NetworkTrainer:
             vae.requires_grad_(False)
             vae.eval()
             with torch.no_grad():
-                train_dataset_group.cache_latents(vae, args.vae_batch_size, args.cache_latents_to_disk, accelerator.is_main_process)
+                train_dataset_group.cache_latents(vae, vae_batch_size, cache_latents_to_disk, accelerator.is_main_process)
             vae.to("cpu")
             clean_memory_on_device(accelerator.device)
 
@@ -284,27 +447,27 @@ class NetworkTrainer:
 
         # prepare network
         net_kwargs = {}
-        if args.network_args is not None:
-            for net_arg in args.network_args:
+        if network_args is not None:
+            for net_arg in network_args:
                 key, value = net_arg.split("=")
                 net_kwargs[key] = value
 
         # if a new network is added in future, add if ~ then blocks for each network (;'∀')
-        if args.dim_from_weights:
-            network, _ = network_module.create_network_from_weights(1, args.network_weights, vae, text_encoder, unet, **net_kwargs)
+        if dim_from_weights:
+            network, _ = network_module.create_network_from_weights(1, network_weights, vae, text_encoder, unet, **net_kwargs)
         else:
             if "dropout" not in net_kwargs:
                 # workaround for LyCORIS (;^ω^)
-                net_kwargs["dropout"] = args.network_dropout
+                net_kwargs["dropout"] = network_dropout
 
             network = network_module.create_network(
                 1.0,
-                args.network_dim,
-                args.network_alpha,
+                network_dim,
+                network_alpha,
                 vae,
                 text_encoder,
                 unet,
-                neuron_dropout=args.network_dropout,
+                neuron_dropout=network_dropout,
                 **net_kwargs,
             )
         if network is None:
@@ -313,21 +476,21 @@ class NetworkTrainer:
 
         if hasattr(network, "prepare_network"):
             network.prepare_network(args)
-        if args.scale_weight_norms and not hasattr(network, "apply_max_norm_regularization"):
+        if scale_weight_norms and not hasattr(network, "apply_max_norm_regularization"):
             logger.warning(
                 "warning: scale_weight_norms is specified but the network does not support it / scale_weight_normsが指定されていますが、ネットワークが対応していません"
             )
-            args.scale_weight_norms = False
+            scale_weight_norms = False
 
-        train_unet = not args.network_train_text_encoder_only
+        train_unet = not network_train_text_encoder_only
         train_text_encoder = self.is_train_text_encoder(args)
         network.apply_to(text_encoder, unet, train_text_encoder, train_unet)
 
-        if args.network_weights is not None:
-            info = network.load_weights(args.network_weights)
-            accelerator.print(f"load network weights from {args.network_weights}: {info}")
+        if network_weights is not None:
+            info = network.load_weights(network_weights)
+            accelerator.print(f"load network weights from {network_weights}: {info}")
 
-        if args.gradient_checkpointing:
+        if gradient_checkpointing:
             unet.enable_gradient_checkpointing()
             for t_enc in text_encoders:
                 t_enc.gradient_checkpointing_enable()
@@ -339,18 +502,18 @@ class NetworkTrainer:
 
         # 後方互換性を確保するよ
         try:
-            trainable_params = network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr, args.learning_rate)
+            trainable_params = network.prepare_optimizer_params(text_encoder_lr, unet_lr, learning_rate)
         except TypeError:
             accelerator.print(
                 "Deprecated: use prepare_optimizer_params(text_encoder_lr, unet_lr, learning_rate) instead of prepare_optimizer_params(text_encoder_lr, unet_lr)"
             )
-            trainable_params = network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr)
+            trainable_params = network.prepare_optimizer_params(text_encoder_lr, unet_lr)
 
         optimizer_name, optimizer_args, optimizer = train_util.get_optimizer(args, trainable_params)
 
         # dataloaderを準備する
         # DataLoaderのプロセス数：0 は persistent_workers が使えないので注意
-        n_workers = min(args.max_data_loader_n_workers, os.cpu_count())  # cpu_count or max_data_loader_n_workers
+        n_workers = min(max_data_loader_n_workers, os.cpu_count())  # cpu_count or max_data_loader_n_workers
 
         train_dataloader = torch.utils.data.DataLoader(
             train_dataset_group,
@@ -358,44 +521,44 @@ class NetworkTrainer:
             shuffle=True,
             collate_fn=collator,
             num_workers=n_workers,
-            persistent_workers=args.persistent_data_loader_workers,
+            persistent_workers=persistent_data_loader_workers,
         )
 
         # 学習ステップ数を計算する
-        if args.max_train_epochs is not None:
-            args.max_train_steps = args.max_train_epochs * math.ceil(
-                len(train_dataloader) / accelerator.num_processes / args.gradient_accumulation_steps
+        if max_train_epochs is not None:
+            max_train_steps = max_train_epochs * math.ceil(
+                len(train_dataloader) / accelerator.num_processes / gradient_accumulation_steps
             )
             accelerator.print(
-                f"override steps. steps for {args.max_train_epochs} epochs is / 指定エポックまでのステップ数: {args.max_train_steps}"
+                f"override steps. steps for {max_train_epochs} epochs is / 指定エポックまでのステップ数: {max_train_steps}"
             )
 
         # データセット側にも学習ステップを送信
-        train_dataset_group.set_max_train_steps(args.max_train_steps)
+        train_dataset_group.set_max_train_steps(max_train_steps)
 
         # lr schedulerを用意する
         lr_scheduler = train_util.get_scheduler_fix(args, optimizer, accelerator.num_processes)
 
         # 実験的機能：勾配も含めたfp16/bf16学習を行う　モデル全体をfp16/bf16にする
-        if args.full_fp16:
+        if full_fp16:
             assert (
-                args.mixed_precision == "fp16"
+                mixed_precision == "fp16"
             ), "full_fp16 requires mixed precision='fp16' / full_fp16を使う場合はmixed_precision='fp16'を指定してください。"
             accelerator.print("enable full fp16 training.")
             network.to(weight_dtype)
-        elif args.full_bf16:
+        elif full_bf16:
             assert (
-                args.mixed_precision == "bf16"
+                mixed_precision == "bf16"
             ), "full_bf16 requires mixed precision='bf16' / full_bf16を使う場合はmixed_precision='bf16'を指定してください。"
             accelerator.print("enable full bf16 training.")
             network.to(weight_dtype)
 
         unet_weight_dtype = te_weight_dtype = weight_dtype
         # Experimental Feature: Put base model into fp8 to save vram
-        if args.fp8_base:
+        if fp8_base:
             assert torch.__version__ >= "2.1.0", "fp8_base requires torch>=2.1.0 / fp8を使う場合はtorch>=2.1.0が必要です。"
             assert (
-                args.mixed_precision != "no"
+                mixed_precision != "no"
             ), "fp8_base requires mixed precision='fp16' or 'bf16' / fp8を使う場合はmixed_precision='fp16'または'bf16'が必要です。"
             accelerator.print("enable fp8 training.")
             unet_weight_dtype = torch.float8_e4m3fn
@@ -428,7 +591,7 @@ class NetworkTrainer:
 
         network, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(network, optimizer, train_dataloader, lr_scheduler)
 
-        if args.gradient_checkpointing:
+        if gradient_checkpointing:
             # according to TI example in Diffusers, train is required
             unet.train()
             for t_enc in text_encoders:
@@ -453,21 +616,21 @@ class NetworkTrainer:
             vae.to(accelerator.device, dtype=vae_dtype)
 
         # 実験的機能：勾配も含めたfp16学習を行う　PyTorchにパッチを当ててfp16でのgrad scaleを有効にする
-        if args.full_fp16:
+        if full_fp16:
             train_util.patch_accelerator_for_fp16_training(accelerator)
 
         # resumeする
         train_util.resume_from_local_or_hf_if_specified(accelerator, args)
 
         # epoch数を計算する
-        num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
-        num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
-        if (args.save_n_epoch_ratio is not None) and (args.save_n_epoch_ratio > 0):
-            args.save_every_n_epochs = math.floor(num_train_epochs / args.save_n_epoch_ratio) or 1
+        num_update_steps_per_epoch = math.ceil(len(train_dataloader) / gradient_accumulation_steps)
+        num_train_epochs = math.ceil(max_train_steps / num_update_steps_per_epoch)
+        if (save_n_epoch_ratio is not None) and (save_n_epoch_ratio > 0):
+            save_every_n_epochs = math.floor(num_train_epochs / save_n_epoch_ratio) or 1
 
         # 学習する
         # TODO: find a way to handle total batch size when there are multiple datasets
-        total_batch_size = args.train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
+        total_batch_size = train_batch_size * accelerator.num_processes * gradient_accumulation_steps
 
         accelerator.print("running training / 学習開始")
         accelerator.print(f"  num train images * repeats / 学習画像の数×繰り返し回数: {train_dataset_group.num_train_images}")
@@ -478,57 +641,57 @@ class NetworkTrainer:
             f"  batch size per device / バッチサイズ: {', '.join([str(d.batch_size) for d in train_dataset_group.datasets])}"
         )
         # accelerator.print(f"  total train batch size (with parallel & distributed & accumulation) / 総バッチサイズ（並列学習、勾配合計含む）: {total_batch_size}")
-        accelerator.print(f"  gradient accumulation steps / 勾配を合計するステップ数 = {args.gradient_accumulation_steps}")
-        accelerator.print(f"  total optimization steps / 学習ステップ数: {args.max_train_steps}")
+        accelerator.print(f"  gradient accumulation steps / 勾配を合計するステップ数 = {gradient_accumulation_steps}")
+        accelerator.print(f"  total optimization steps / 学習ステップ数: {max_train_steps}")
 
         # TODO refactor metadata creation and move to util
         metadata = {
             "ss_session_id": session_id,  # random integer indicating which group of epochs the model came from
             "ss_training_started_at": training_started_at,  # unix timestamp
-            "ss_output_name": args.output_name,
-            "ss_learning_rate": args.learning_rate,
-            "ss_text_encoder_lr": args.text_encoder_lr,
-            "ss_unet_lr": args.unet_lr,
+            "ss_output_name": output_name,
+            "ss_learning_rate": learning_rate,
+            "ss_text_encoder_lr": text_encoder_lr,
+            "ss_unet_lr": unet_lr,
             "ss_num_train_images": train_dataset_group.num_train_images,
             "ss_num_reg_images": train_dataset_group.num_reg_images,
             "ss_num_batches_per_epoch": len(train_dataloader),
             "ss_num_epochs": num_train_epochs,
-            "ss_gradient_checkpointing": args.gradient_checkpointing,
-            "ss_gradient_accumulation_steps": args.gradient_accumulation_steps,
-            "ss_max_train_steps": args.max_train_steps,
-            "ss_lr_warmup_steps": args.lr_warmup_steps,
-            "ss_lr_scheduler": args.lr_scheduler,
-            "ss_network_module": args.network_module,
-            "ss_network_dim": args.network_dim,  # None means default because another network than LoRA may have another default dim
-            "ss_network_alpha": args.network_alpha,  # some networks may not have alpha
-            "ss_network_dropout": args.network_dropout,  # some networks may not have dropout
-            "ss_mixed_precision": args.mixed_precision,
-            "ss_full_fp16": bool(args.full_fp16),
-            "ss_v2": bool(args.v2),
+            "ss_gradient_checkpointing": gradient_checkpointing,
+            "ss_gradient_accumulation_steps": gradient_accumulation_steps,
+            "ss_max_train_steps": max_train_steps,
+            "ss_lr_warmup_steps": lr_warmup_steps,
+            "ss_lr_scheduler": lr_scheduler,
+            "ss_network_module": network_module,
+            "ss_network_dim": network_dim,  # None means default because another network than LoRA may have another default dim
+            "ss_network_alpha": network_alpha,  # some networks may not have alpha
+            "ss_network_dropout": network_dropout,  # some networks may not have dropout
+            "ss_mixed_precision": mixed_precision,
+            "ss_full_fp16": bool(full_fp16),
+            "ss_v2": bool(v2),
             "ss_base_model_version": model_version,
-            "ss_clip_skip": args.clip_skip,
-            "ss_max_token_length": args.max_token_length,
-            "ss_cache_latents": bool(args.cache_latents),
-            "ss_seed": args.seed,
-            "ss_lowram": args.lowram,
-            "ss_noise_offset": args.noise_offset,
-            "ss_multires_noise_iterations": args.multires_noise_iterations,
-            "ss_multires_noise_discount": args.multires_noise_discount,
-            "ss_adaptive_noise_scale": args.adaptive_noise_scale,
-            "ss_zero_terminal_snr": args.zero_terminal_snr,
-            "ss_training_comment": args.training_comment,  # will not be updated after training
+            "ss_clip_skip": clip_skip,
+            "ss_max_token_length": max_token_length,
+            "ss_cache_latents": bool(cache_latents),
+            "ss_seed": seed,
+            "ss_lowram": lowram,
+            "ss_noise_offset": noise_offset,
+            "ss_multires_noise_iterations": multires_noise_iterations,
+            "ss_multires_noise_discount": multires_noise_discount,
+            "ss_adaptive_noise_scale": adaptive_noise_scale,
+            "ss_zero_terminal_snr": zero_terminal_snr,
+            "ss_training_comment": training_comment,  # will not be updated after training
             "ss_sd_scripts_commit_hash": train_util.get_git_revision_hash(),
             "ss_optimizer": optimizer_name + (f"({optimizer_args})" if len(optimizer_args) > 0 else ""),
-            "ss_max_grad_norm": args.max_grad_norm,
-            "ss_caption_dropout_rate": args.caption_dropout_rate,
-            "ss_caption_dropout_every_n_epochs": args.caption_dropout_every_n_epochs,
-            "ss_caption_tag_dropout_rate": args.caption_tag_dropout_rate,
-            "ss_face_crop_aug_range": args.face_crop_aug_range,
-            "ss_prior_loss_weight": args.prior_loss_weight,
-            "ss_min_snr_gamma": args.min_snr_gamma,
-            "ss_scale_weight_norms": args.scale_weight_norms,
-            "ss_ip_noise_gamma": args.ip_noise_gamma,
-            "ss_debiased_estimation": bool(args.debiased_estimation_loss),
+            "ss_max_grad_norm": max_grad_norm,
+            "ss_caption_dropout_rate": caption_dropout_rate,
+            "ss_caption_dropout_every_n_epochs": caption_dropout_every_n_epochs,
+            "ss_caption_tag_dropout_rate": caption_tag_dropout_rate,
+            "ss_face_crop_aug_range": face_crop_aug_range,
+            "ss_prior_loss_weight": prior_loss_weight,
+            "ss_min_snr_gamma": min_snr_gamma,
+            "ss_scale_weight_norms": scale_weight_norms,
+            "ss_ip_noise_gamma": ip_noise_gamma,
+            "ss_debiased_estimation": bool(debiased_estimation_loss),
         }
 
         if use_user_config:
@@ -638,18 +801,18 @@ class NetworkTrainer:
 
             metadata.update(
                 {
-                    "ss_batch_size_per_device": args.train_batch_size,
+                    "ss_batch_size_per_device": train_batch_size,
                     "ss_total_batch_size": total_batch_size,
-                    "ss_resolution": args.resolution,
-                    "ss_color_aug": bool(args.color_aug),
-                    "ss_flip_aug": bool(args.flip_aug),
-                    "ss_random_crop": bool(args.random_crop),
-                    "ss_shuffle_caption": bool(args.shuffle_caption),
+                    "ss_resolution": resolution,
+                    "ss_color_aug": bool(color_aug),
+                    "ss_flip_aug": bool(flip_aug),
+                    "ss_random_crop": bool(random_crop),
+                    "ss_shuffle_caption": bool(shuffle_caption),
                     "ss_enable_bucket": bool(dataset.enable_bucket),
                     "ss_bucket_no_upscale": bool(dataset.bucket_no_upscale),
                     "ss_min_bucket_reso": dataset.min_bucket_reso,
                     "ss_max_bucket_reso": dataset.max_bucket_reso,
-                    "ss_keep_tokens": args.keep_tokens,
+                    "ss_keep_tokens": keep_tokens,
                     "ss_dataset_dirs": json.dumps(dataset_dirs_info),
                     "ss_reg_dataset_dirs": json.dumps(reg_dataset_dirs_info),
                     "ss_tag_frequency": json.dumps(dataset.tag_frequency),
@@ -658,20 +821,20 @@ class NetworkTrainer:
             )
 
         # add extra args
-        if args.network_args:
+        if network_args:
             metadata["ss_network_args"] = json.dumps(net_kwargs)
 
         # model name and hash
-        if args.pretrained_model_name_or_path is not None:
-            sd_model_name = args.pretrained_model_name_or_path
+        if pretrained_model_name_or_path is not None:
+            sd_model_name = pretrained_model_name_or_path
             if os.path.exists(sd_model_name):
                 metadata["ss_sd_model_hash"] = train_util.model_hash(sd_model_name)
                 metadata["ss_new_sd_model_hash"] = train_util.calculate_sha256(sd_model_name)
                 sd_model_name = os.path.basename(sd_model_name)
             metadata["ss_sd_model_name"] = sd_model_name
 
-        if args.vae is not None:
-            vae_name = args.vae
+        if vae_path is not None:
+            vae_name = vae_path
             if os.path.exists(vae_name):
                 metadata["ss_vae_hash"] = train_util.model_hash(vae_name)
                 metadata["ss_new_vae_hash"] = train_util.calculate_sha256(vae_name)
@@ -686,24 +849,24 @@ class NetworkTrainer:
             if key in metadata:
                 minimum_metadata[key] = metadata[key]
 
-        progress_bar = tqdm(range(args.max_train_steps), smoothing=0, disable=not accelerator.is_local_main_process, desc="steps")
+        progress_bar = tqdm(range(max_train_steps), smoothing=0, disable=not accelerator.is_local_main_process, desc="steps")
         global_step = 0
 
         noise_scheduler = DDPMScheduler(
             beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000, clip_sample=False
         )
         prepare_scheduler_for_custom_training(noise_scheduler, accelerator.device)
-        if args.zero_terminal_snr:
+        if zero_terminal_snr:
             custom_train_functions.fix_noise_scheduler_betas_for_zero_terminal_snr(noise_scheduler)
 
         if accelerator.is_main_process:
             init_kwargs = {}
-            if args.wandb_run_name:
-                init_kwargs["wandb"] = {"name": args.wandb_run_name}
-            if args.log_tracker_config is not None:
-                init_kwargs = toml.load(args.log_tracker_config)
+            if wandb_run_name:
+                init_kwargs["wandb"] = {"name": wandb_run_name}
+            if log_tracker_config is not None:
+                init_kwargs = toml.load(log_tracker_config)
             accelerator.init_trackers(
-                "network_train" if args.log_tracker_name is None else args.log_tracker_name, init_kwargs=init_kwargs
+                "network_train" if log_tracker_name is None else log_tracker_name, init_kwargs=init_kwargs
             )
 
         loss_recorder = train_util.LossRecorder()
@@ -717,24 +880,24 @@ class NetworkTrainer:
 
         # function for saving/removing
         def save_model(ckpt_name, unwrapped_nw, steps, epoch_no, force_sync_upload=False):
-            os.makedirs(args.output_dir, exist_ok=True)
-            ckpt_file = os.path.join(args.output_dir, ckpt_name)
+            os.makedirs(output_dir, exist_ok=True)
+            ckpt_file = os.path.join(output_dir, ckpt_name)
 
             accelerator.print(f"\nsaving checkpoint: {ckpt_file}")
             metadata["ss_training_finished_at"] = str(time.time())
             metadata["ss_steps"] = str(steps)
             metadata["ss_epoch"] = str(epoch_no)
 
-            metadata_to_save = minimum_metadata if args.no_metadata else metadata
+            metadata_to_save = minimum_metadata if no_metadata else metadata
             sai_metadata = train_util.get_sai_model_spec(None, args, self.is_sdxl, True, False)
             metadata_to_save.update(sai_metadata)
 
             unwrapped_nw.save_weights(ckpt_file, save_dtype, metadata_to_save)
-            if args.huggingface_repo_id is not None:
+            if huggingface_repo_id is not None:
                 huggingface_util.upload(args, ckpt_file, "/" + ckpt_name, force_sync_upload=force_sync_upload)
 
         def remove_model(old_ckpt_name):
-            old_ckpt_file = os.path.join(args.output_dir, old_ckpt_name)
+            old_ckpt_file = os.path.join(output_dir, old_ckpt_name)
             if os.path.exists(old_ckpt_file):
                 accelerator.print(f"removing old checkpoint: {old_ckpt_file}")
                 os.remove(old_ckpt_file)
@@ -782,14 +945,14 @@ class NetworkTrainer:
 
                     with torch.set_grad_enabled(train_text_encoder), accelerator.autocast():
                         # Get the text embedding for conditioning
-                        if args.weighted_captions:
+                        if weighted_captions:
                             text_encoder_conds = get_weighted_text_embeddings(
                                 tokenizer,
                                 text_encoder,
                                 batch["captions"],
                                 accelerator.device,
-                                args.max_token_length // 75 if args.max_token_length else 1,
-                                clip_skip=args.clip_skip,
+                                max_token_length // 75 if max_token_length else 1,
+                                clip_skip=clip_skip,
                             )
                         else:
                             text_encoder_conds = self.get_text_cond(
@@ -803,7 +966,7 @@ class NetworkTrainer:
                     )
 
                     # ensure the hidden state will require grad
-                    if args.gradient_checkpointing:
+                    if gradient_checkpointing:
                         for x in noisy_latents:
                             x.requires_grad_(True)
                         for t in text_encoder_conds:
@@ -822,7 +985,7 @@ class NetworkTrainer:
                             weight_dtype,
                         )
 
-                    if args.v_parameterization:
+                    if v_parameterization:
                         # v-parameterization training
                         target = noise_scheduler.get_velocity(latents, noise, timesteps)
                     else:
@@ -834,13 +997,13 @@ class NetworkTrainer:
                     loss_weights = batch["loss_weights"]  # 各sampleごとのweight
                     loss = loss * loss_weights
 
-                    if args.min_snr_gamma:
-                        loss = apply_snr_weight(loss, timesteps, noise_scheduler, args.min_snr_gamma, args.v_parameterization)
-                    if args.scale_v_pred_loss_like_noise_pred:
+                    if min_snr_gamma:
+                        loss = apply_snr_weight(loss, timesteps, noise_scheduler, min_snr_gamma, v_parameterization)
+                    if scale_v_pred_loss_like_noise_pred:
                         loss = scale_v_prediction_loss_like_noise_prediction(loss, timesteps, noise_scheduler)
-                    if args.v_pred_like_loss:
-                        loss = add_v_prediction_like_loss(loss, timesteps, noise_scheduler, args.v_pred_like_loss)
-                    if args.debiased_estimation_loss:
+                    if v_pred_like_loss:
+                        loss = add_v_prediction_like_loss(loss, timesteps, noise_scheduler, v_pred_like_loss)
+                    if debiased_estimation_loss:
                         loss = apply_debiased_estimation(loss, timesteps, noise_scheduler)
 
                     loss = loss.mean()  # 平均なのでbatch_sizeで割る必要なし
@@ -848,17 +1011,17 @@ class NetworkTrainer:
                     accelerator.backward(loss)
                     if accelerator.sync_gradients:
                         self.all_reduce_network(accelerator, network)  # sync DDP grad manually
-                        if args.max_grad_norm != 0.0:
+                        if max_grad_norm != 0.0:
                             params_to_clip = accelerator.unwrap_model(network).get_trainable_params()
-                            accelerator.clip_grad_norm_(params_to_clip, args.max_grad_norm)
+                            accelerator.clip_grad_norm_(params_to_clip, max_grad_norm)
 
                     optimizer.step()
                     lr_scheduler.step()
                     optimizer.zero_grad(set_to_none=True)
 
-                if args.scale_weight_norms:
+                if scale_weight_norms:
                     keys_scaled, mean_norm, maximum_norm = accelerator.unwrap_model(network).apply_max_norm_regularization(
-                        args.scale_weight_norms, accelerator.device
+                        scale_weight_norms, accelerator.device
                     )
                     max_mean_logs = {"Keys Scaled": keys_scaled, "Average key norm": mean_norm}
                 else:
@@ -872,18 +1035,18 @@ class NetworkTrainer:
                     self.sample_images(accelerator, args, None, global_step, accelerator.device, vae, tokenizer, text_encoder, unet)
 
                     # 指定ステップごとにモデルを保存
-                    if args.save_every_n_steps is not None and global_step % args.save_every_n_steps == 0:
+                    if save_every_n_steps is not None and global_step % save_every_n_steps == 0:
                         accelerator.wait_for_everyone()
                         if accelerator.is_main_process:
-                            ckpt_name = train_util.get_step_ckpt_name(args, "." + args.save_model_as, global_step)
+                            ckpt_name = train_util.get_step_ckpt_name(args, "." + save_model_as, global_step)
                             save_model(ckpt_name, accelerator.unwrap_model(network), global_step, epoch)
 
-                            if args.save_state:
+                            if save_state:
                                 train_util.save_and_remove_state_stepwise(args, accelerator, global_step)
 
                             remove_step_no = train_util.get_remove_step_no(args, global_step)
                             if remove_step_no is not None:
-                                remove_ckpt_name = train_util.get_step_ckpt_name(args, "." + args.save_model_as, remove_step_no)
+                                remove_ckpt_name = train_util.get_step_ckpt_name(args, "." + save_model_as, remove_step_no)
                                 remove_model(remove_ckpt_name)
 
                 current_loss = loss.detach().item()
@@ -892,35 +1055,35 @@ class NetworkTrainer:
                 logs = {"avr_loss": avr_loss}  # , "lr": lr_scheduler.get_last_lr()[0]}
                 progress_bar.set_postfix(**logs)
 
-                if args.scale_weight_norms:
+                if scale_weight_norms:
                     progress_bar.set_postfix(**{**max_mean_logs, **logs})
 
-                if args.logging_dir is not None:
+                if logging_dir is not None:
                     logs = self.generate_step_logs(args, current_loss, avr_loss, lr_scheduler, keys_scaled, mean_norm, maximum_norm)
                     accelerator.log(logs, step=global_step)
 
-                if global_step >= args.max_train_steps:
+                if global_step >= max_train_steps:
                     break
 
-            if args.logging_dir is not None:
+            if logging_dir is not None:
                 logs = {"loss/epoch": loss_recorder.moving_average}
                 accelerator.log(logs, step=epoch + 1)
 
             accelerator.wait_for_everyone()
 
             # 指定エポックごとにモデルを保存
-            if args.save_every_n_epochs is not None:
-                saving = (epoch + 1) % args.save_every_n_epochs == 0 and (epoch + 1) < num_train_epochs
+            if save_every_n_epochs is not None:
+                saving = (epoch + 1) % save_every_n_epochs == 0 and (epoch + 1) < num_train_epochs
                 if is_main_process and saving:
-                    ckpt_name = train_util.get_epoch_ckpt_name(args, "." + args.save_model_as, epoch + 1)
+                    ckpt_name = train_util.get_epoch_ckpt_name(args, "." + save_model_as, epoch + 1)
                     save_model(ckpt_name, accelerator.unwrap_model(network), global_step, epoch + 1)
 
                     remove_epoch_no = train_util.get_remove_epoch_no(args, epoch + 1)
                     if remove_epoch_no is not None:
-                        remove_ckpt_name = train_util.get_epoch_ckpt_name(args, "." + args.save_model_as, remove_epoch_no)
+                        remove_ckpt_name = train_util.get_epoch_ckpt_name(args, "." + save_model_as, remove_epoch_no)
                         remove_model(remove_ckpt_name)
 
-                    if args.save_state:
+                    if save_state:
                         train_util.save_and_remove_state_on_epoch_end(args, accelerator, epoch + 1)
 
             self.sample_images(accelerator, args, epoch + 1, global_step, accelerator.device, vae, tokenizer, text_encoder, unet)
@@ -935,11 +1098,11 @@ class NetworkTrainer:
 
         accelerator.end_training()
 
-        if is_main_process and args.save_state:
+        if is_main_process and save_state:
             train_util.save_state_on_train_end(args, accelerator)
 
         if is_main_process:
-            ckpt_name = train_util.get_last_ckpt_name(args, "." + args.save_model_as)
+            ckpt_name = train_util.get_last_ckpt_name(args, "." + save_model_as)
             save_model(ckpt_name, network, global_step, num_train_epochs, force_sync_upload=True)
 
             logger.info("model saved.")
@@ -1055,4 +1218,4 @@ if __name__ == "__main__":
     args = train_util.read_config_from_file(args, parser)
 
     trainer = NetworkTrainer()
-    trainer.train(args)
+    trainer.train(**vars(args))
