@@ -181,4 +181,4 @@ if __name__ == "__main__":
     args = train_util.read_config_from_file(args, parser)
 
     trainer = SdxlNetworkTrainer()
-    trainer.train(args)
+    trainer.train(**vars(args))
