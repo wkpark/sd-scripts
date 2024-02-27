@@ -1979,7 +1979,7 @@ def lora_tab(
             inputs=[dummy_db_false, dummy_db_true, config.config_file_name]
             + settings_list
             + [training_preset],
-            outputs=[gr.Textbox()] + settings_list + [training_preset, convolution_row],
+            outputs=[gr.Textbox(visible=False)] + settings_list + [training_preset, convolution_row],
             show_progress=False,
         )
 
@@ -2016,9 +2016,9 @@ def lora_tab(
 
     with gr.Tab("Guides"):
         gr.Markdown("This section provide Various LoRA guides and information...")
-        if os.path.exists("./docs/LoRA/top_level.md"):
+        if os.path.exists(fr"{scriptdir}/docs/LoRA/top_level.md"):
             with open(
-                os.path.join("./docs/LoRA/top_level.md"), "r", encoding="utf8"
+                os.path.join(fr"{scriptdir}/docs/LoRA/top_level.md"), "r", encoding="utf8"
             ) as file:
                 guides_top_level = file.read() + "\n"
             gr.Markdown(guides_top_level)
